@@ -1,0 +1,77 @@
+---
+- name: Ensure prerequisites are installed
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+    state: present
+    update_cache: yes
+
+- block:
+    - name: Download Tailscale GPG key to controller
+      become: false
+      ansible.builtin.get_url:
+        url: https://pkgs.tailscale.com/stable/debian/repo.gpg
+        dest: /tmp/tailscale_repo.gpg
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+      register: tailscale_key_download
+
+    - name: Copy Tailscale GPG key to host
+      ansible.builtin.copy:
+        src: /tmp/tailscale_repo.gpg
+        dest: /tmp/tailscale_repo.gpg
+        mode: '0644'
+
+    - name: Add Tailscale repository GPG key from local file
+      ansible.builtin.apt_key:
+        file: /tmp/tailscale_repo.gpg
+        state: present
+
+    - name: Remove temporary key file from host
+      ansible.builtin.file:
+        path: /tmp/tailscale_repo.gpg
+        state: absent
+  when: not ansible_check_mode
+  rescue:
+    - name: "Fallback: install Tailscale using official installer when GPG key download or key add failed"
+      ansible.builtin.shell: |
+        curl -fsSL https://tailscale.com/install.sh | sh
+      args:
+        executable: /bin/bash
+      become: yes
+    - name: Mark tailscale installer used
+      ansible.builtin.set_fact:
+        tailscale_installer_used: true
+      run_once: false
+      when: not ansible_check_mode
+
+- name: Add Tailscale apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://pkgs.tailscale.com/stable/debian {{ ansible_distribution_release }} main"
+    state: present
+    filename: tailscale
+  when: not (tailscale_installer_used | default(false))
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install tailscale package
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+
+- name: Ensure tailscaled service is enabled and started
+  ansible.builtin.service:
+    name: tailscaled
+    enabled: yes
+    state: started
+
+- name: Optionally run `tailscale up` when auth key provided
+  ansible.builtin.command: >-
+    tailscale up --authkey={{ tailscale_auth_key }} --accept-routes
+  when: tailscale_auth_key is defined and tailscale_auth_key | length > 0
+  register: tailscale_up
+  changed_when: tailscale_up.rc == 0

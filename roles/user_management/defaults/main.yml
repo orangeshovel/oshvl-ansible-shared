@@ -1,0 +1,15 @@
+---
+# User Management Role - Default Variables
+
+# Admin users to create (can be overridden in playbook)
+admin_users:
+  - name: randall
+    groups:
+      - service-accounts
+      - sudo
+    shell: /bin/bash
+    force_password_change: true
+    # Password should be provided via vault in playbook or inventory
+
+# Service accounts group
+service_accounts_group: service-accounts

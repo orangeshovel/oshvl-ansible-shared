@@ -1,0 +1,44 @@
+---
+# App Directories Role - Tasks
+
+- name: Create {{ app_dir_name }} base directory
+  file:
+    path: "{{ app_dir_base }}"
+    state: directory
+    owner: "{{ app_dir_user }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_dir_mode_base }}"
+
+- name: Create {{ app_dir_name }} repo directory (managed by GitHub runner)
+  file:
+    path: "{{ app_dir_base }}/repo"
+    state: directory
+    owner: "{{ app_dir_user }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_dir_mode_writable }}"
+
+- name: Create {{ app_dir_name }} current directory (where app code lives)
+  file:
+    path: "{{ app_dir_base }}/current"
+    state: directory
+    owner: "{{ app_dir_user }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_dir_mode_writable }}"
+
+- name: Create {{ app_dir_name }} log directory
+  file:
+    path: "{{ app_log_dir }}"
+    state: directory
+    owner: "{{ app_dir_user }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_dir_mode_writable }}"
+  when: app_log_dir is defined
+
+- name: Create {{ app_dir_name }} data directory
+  file:
+    path: "{{ app_data_dir }}"
+    state: directory
+    owner: "{{ app_dir_user }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_dir_mode_writable }}"
+  when: app_data_dir is defined

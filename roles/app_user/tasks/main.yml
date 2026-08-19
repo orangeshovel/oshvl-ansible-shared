@@ -1,0 +1,19 @@
+---
+# App User Role - Tasks
+
+- name: Ensure service-accounts group exists
+  group:
+    name: service-accounts
+    state: present
+    system: no
+
+- name: Create application service user
+  user:
+    name: "{{ app_user_name }}"
+    comment: "{{ app_user_comment }}"
+    home: "{{ app_user_home }}"
+    shell: "{{ app_user_shell }}"
+    create_home: yes
+    system: no
+    groups: "{{ app_user_groups | join(',') }}"
+    append: yes

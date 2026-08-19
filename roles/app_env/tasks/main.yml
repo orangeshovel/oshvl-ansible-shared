@@ -1,0 +1,11 @@
+---
+# App Environment Role - Tasks
+
+- name: Deploy {{ app_env_name }} .env configuration file
+  template:
+    src: "{{ app_env_template }}"
+    dest: "{{ app_env_dest }}"
+    owner: "{{ app_env_user }}"
+    group: "{{ app_env_group }}"
+    mode: "{{ app_env_mode }}"
+  no_log: true

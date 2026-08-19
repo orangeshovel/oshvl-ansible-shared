@@ -1,0 +1,8 @@
+---
+# App User Role - Default Variables
+
+app_user_comment: "Application Service User"
+app_user_home: "/home/{{ app_user_name }}"
+app_user_shell: "/bin/bash"
+app_user_groups:
+  - service-accounts

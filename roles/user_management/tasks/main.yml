@@ -1,0 +1,38 @@
+---
+# User management role tasks
+
+- name: Install OpenSSH Server
+  apt:
+    name: openssh-server
+    state: present
+    update_cache: yes
+
+- name: Start and enable SSH service
+  systemd:
+    name: ssh
+    enabled: yes
+    state: started
+
+- name: Ensure service-accounts group exists
+  group:
+    name: "{{ service_accounts_group }}"
+    state: present
+
+- name: Create admin users
+  user:
+    name: "{{ item.name }}"
+    groups: "{{ item.groups | join(',') }}"
+    append: yes
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    create_home: yes
+    state: present
+    password: "{{ item.password | default(omit) }}"
+  loop: "{{ admin_users }}"
+  no_log: true
+
+- name: Force password change on next login for users that require it
+  ansible.builtin.command: chage -d 0 "{{ item.name }}"
+  loop: "{{ admin_users }}"
+  when: item.force_password_change | default(false)
+  changed_when: false
+

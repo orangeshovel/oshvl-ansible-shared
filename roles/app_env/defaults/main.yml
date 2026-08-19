@@ -1,0 +1,6 @@
+---
+# App Environment Role - Default Variables
+
+app_env_group: "service-accounts"
+app_env_mode: "0640"
+app_env_vars: {}

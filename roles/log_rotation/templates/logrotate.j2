@@ -1,0 +1,28 @@
+{% for config in logrotate_configs %}
+{{ config.logs | join(' ') }} {
+    daily
+    rotate {{ config.rotate | default(logrotate_default_rotate) }}
+{% if config.size is defined %}
+    size {{ config.size }}
+{% else %}
+    size {{ logrotate_default_size }}
+{% endif %}
+{% if config.compress | default(logrotate_default_compress) %}
+    compress
+    delaycompress
+{% endif %}
+    missingok
+    notifempty
+    su {{ config.user }} {{ config.group | default(config.user) }}
+    create 0644 {{ config.user }} {{ config.group | default(config.user) }}
+{% if config.postrotate is defined %}
+    postrotate
+        {{ config.postrotate }}
+    endscript
+{% endif %}
+{% if not loop.last %}
+    sharedscripts
+{% endif %}
+}
+
+{% endfor %}

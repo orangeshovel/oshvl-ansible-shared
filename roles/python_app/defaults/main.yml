@@ -1,0 +1,13 @@
+---
+# Python App Role - Default Variables
+
+python_app_version: "python3"
+python_app_base_packages:
+  - git
+  - python3
+  - python3-pip
+  - python3-venv
+  - postgresql-client
+  - make
+  - unzip
+python_app_extra_packages: []

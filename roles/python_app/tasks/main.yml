@@ -1,0 +1,9 @@
+---
+# Python App Role - Tasks
+
+- name: Install Python application system packages
+  apt:
+    name: "{{ python_app_base_packages + python_app_extra_packages }}"
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600

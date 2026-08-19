@@ -1,0 +1,8 @@
+---
+# GitHub Deploy Role - Default Variables
+
+github_deploy_runner_user: "oshvl-github-runner"
+github_deploy_allowed_commands:
+  - /usr/bin/chgrp
+  - /usr/bin/chmod
+  - /usr/bin/cp

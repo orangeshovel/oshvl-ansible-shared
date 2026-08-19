@@ -1,0 +1,10 @@
+---
+# Log Rotation Role - Tasks
+
+- name: Configure logrotate for {{ logrotate_name }}
+  template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/{{ logrotate_name }}
+    owner: root
+    group: root
+    mode: '0644'

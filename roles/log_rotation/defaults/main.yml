@@ -1,0 +1,6 @@
+---
+# Log Rotation Role - Default Variables
+
+logrotate_default_rotate: 30
+logrotate_default_size: "10M"
+logrotate_default_compress: true

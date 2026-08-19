@@ -1,0 +1,6 @@
+---
+# App Directories Role - Default Variables
+
+app_dir_group: "service-accounts"
+app_dir_mode_base: "0755"
+app_dir_mode_writable: "0775"

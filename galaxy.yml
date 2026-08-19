@@ -1,0 +1,14 @@
+namespace: oshvl
+name: infra
+version: 1.0.0
+readme: README.md
+authors:
+  - orangeshovel
+description: Shared Ansible roles for orangeshovel, lonebirchlab, and projectunmute
+license:
+  - MIT
+tags:
+  - infrastructure
+  - deployment
+repository: https://github.com/orangeshovel/oshvl-ansible-shared
+issues: https://github.com/orangeshovel/oshvl-ansible-shared/issues

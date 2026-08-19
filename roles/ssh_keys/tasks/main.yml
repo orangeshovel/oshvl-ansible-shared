@@ -1,0 +1,98 @@
+---
+# SSH Keys Role - Tasks
+
+- name: Ensure .ssh directory exists for user
+  file:
+    path: "/home/{{ ssh_keys_user_name }}/.ssh"
+    state: directory
+    owner: "{{ ssh_keys_user_name }}"
+    group: "{{ ssh_keys_user_name }}"
+    mode: '0700'
+
+- name: Generate SSH key pair for user
+  community.crypto.openssh_keypair:
+    path: "{{ ssh_keys_path }}"
+    type: "{{ ssh_keys_type }}"
+    owner: "{{ ssh_keys_user_name }}"
+    group: "{{ ssh_keys_user_name }}"
+    comment: "{{ ssh_keys_comment }}"
+    state: present
+  register: ssh_key_generated
+  when: not ansible_check_mode
+
+- name: Display check mode message for SSH key generation
+  debug:
+    msg: |
+      
+      ========================================
+      SSH Key Generation (Check Mode)
+      ========================================
+      
+      In production, SSH key would be generated at:
+      {{ ssh_keys_path }}
+      
+      For remote access to: {{ ssh_keys_remote_host }}
+      
+      Run without --check flag to actually generate the key.
+      ========================================
+      
+  when: ansible_check_mode
+
+- name: Read public key
+  slurp:
+    src: "{{ ssh_keys_path }}.pub"
+  register: ssh_public_key_content
+  when: 
+    - ssh_keys_display_public_key
+    - not ansible_check_mode
+
+- name: Display public key for manual deployment
+  debug:
+    msg: |
+      
+      ========================================
+      SSH Public Key Generated
+      ========================================
+      
+      Key Location: {{ ssh_keys_path }}
+      Remote Host: {{ ssh_keys_remote_host }}
+      
+      To enable SSH access, add this public key to {{ ssh_keys_remote_user }}@{{ ssh_keys_remote_host }}:
+      
+      {{ ssh_public_key_content.content | b64decode }}
+      
+      Quick Deploy Command:
+      ---------------------
+      echo "{{ ssh_public_key_content.content | b64decode | trim }}" | ssh {{ ssh_keys_remote_user }}@{{ ssh_keys_remote_host }} 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
+      
+      Manual Deploy:
+      --------------
+      1. SSH into {{ ssh_keys_remote_host }}
+      2. Run: mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      3. Add the key above to ~/.ssh/authorized_keys
+      4. Run: chmod 600 ~/.ssh/authorized_keys
+      
+      ========================================
+      
+  when: 
+    - ssh_keys_display_public_key
+    - ssh_public_key_content is defined
+    - not ansible_check_mode
+
+- name: Add remote host to known_hosts
+  known_hosts:
+    name: "{{ ssh_keys_remote_host }}"
+    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + ssh_keys_remote_host) }}"
+    path: "/home/{{ ssh_keys_user_name }}/.ssh/known_hosts"
+    state: present
+  become_user: "{{ ssh_keys_user_name }}"
+  ignore_errors: yes
+  register: known_hosts_result
+  when: not ansible_check_mode
+
+- name: Display known_hosts status
+  debug:
+    msg: "{{ 'Successfully added ' + ssh_keys_remote_host + ' to known_hosts' if known_hosts_result is succeeded else 'Warning: Could not add ' + ssh_keys_remote_host + ' to known_hosts. Manual verification may be required.' }}"
+  when: 
+    - not ansible_check_mode
+    - known_hosts_result is defined

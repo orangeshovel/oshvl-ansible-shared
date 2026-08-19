@@ -1,0 +1,21 @@
+---
+# SSH Keys Role - Default Variables
+
+# Username for SSH key generation (follows app-user naming convention)
+# Can also use ssh_keys_user for backwards compatibility
+ssh_keys_user_name: "{{ ssh_keys_user | default(app_user | default('')) }}"
+
+# SSH key type (ed25519, rsa, ecdsa, etc.)
+ssh_keys_type: ed25519
+
+# Key comment (defaults to user@hostname)
+ssh_keys_comment: "{{ ssh_keys_user_name }}@{{ ansible_hostname }}"
+
+# SSH key file path
+ssh_keys_path: "/home/{{ ssh_keys_user_name }}/.ssh/id_{{ ssh_keys_type }}"
+
+# Whether to display the public key after generation
+ssh_keys_display_public_key: true
+
+# Remote username (defaults to same as local user)
+ssh_keys_remote_user: "{{ ssh_keys_user_name }}"

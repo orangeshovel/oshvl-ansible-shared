@@ -1,0 +1,17 @@
+---
+# GitHub Deploy Role - Tasks
+
+- name: Configure sudo access for {{ github_deploy_runner_user }} to deploy {{ github_deploy_app_name }}
+  copy:
+    content: |
+      # Allow {{ github_deploy_runner_user }} to run commands as {{ github_deploy_app_user }} user
+      # This enables GitHub Actions workflow to deploy to the shared directory
+      {{ github_deploy_runner_user }} ALL=({{ github_deploy_app_user }}) NOPASSWD: ALL
+      
+      # Allow changing group ownership and copying files
+      {{ github_deploy_runner_user }} ALL=(root) NOPASSWD: {{ github_deploy_allowed_commands | join(', ') }}
+    dest: /etc/sudoers.d/github-runner-{{ github_deploy_app_name | replace('.', '-') }}
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'
