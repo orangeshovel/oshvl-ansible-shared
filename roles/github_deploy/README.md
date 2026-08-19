@@ -17,7 +17,7 @@ Configures sudoers permissions for GitHub Actions runner to deploy applications.
   vars:
     github_deploy_app_name: myapp
     github_deploy_app_user: myapp
-    github_deploy_runner_user: oshvl-github-runner
+    github_deploy_runner_user: your-repo-runner-username  # required, no default
 ```
 
 ## Variables
@@ -26,7 +26,7 @@ Configures sudoers permissions for GitHub Actions runner to deploy applications.
 |----------|----------|---------|-------------|
 | `github_deploy_app_name` | Yes | - | Application name (for sudoers file) |
 | `github_deploy_app_user` | Yes | - | Service user to run commands as |
-| `github_deploy_runner_user` | No | `oshvl-github-runner` | GitHub runner username |
+| `github_deploy_runner_user` | **Yes** | - (no default) | GitHub runner username — **always set this explicitly**. Each consumer repo's self-hosted runner has a different OS username; a default here previously caused a real incident (a consumer repo silently inherited orangeshovel's runner user, revoking that repo's actual runner's sudo access). |
 | `github_deploy_allowed_commands` | No | See defaults | Additional sudo commands to allow |
 
 ## Default Permissions
@@ -61,16 +61,17 @@ All commands are **NOPASSWD** for automated deployments.
       vars:
         github_deploy_app_name: myapp
         github_deploy_app_user: myapp
+        github_deploy_runner_user: your-repo-runner-username
 ```
 
 ## Sudoers File Output
 
 ```
-# Allow github-runner to run commands as the application service user (example)
-oshvl-github-runner ALL=(myapp) NOPASSWD: ALL
+# Allow your-repo-runner-username to run commands as the application service user
+your-repo-runner-username ALL=(myapp) NOPASSWD: ALL
 
 # Allow changing group ownership and copying files
-oshvl-github-runner ALL=(root) NOPASSWD: /usr/bin/chgrp, /usr/bin/chmod, /usr/bin/cp
+your-repo-runner-username ALL=(root) NOPASSWD: /usr/bin/chgrp, /usr/bin/chmod, /usr/bin/cp
 ```
 
 ## GitHub Actions Workflow Example

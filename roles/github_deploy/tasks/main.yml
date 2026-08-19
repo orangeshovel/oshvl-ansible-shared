@@ -1,6 +1,17 @@
 ---
 # GitHub Deploy Role - Tasks
 
+- name: Assert github_deploy_runner_user is set
+  assert:
+    that:
+      - github_deploy_runner_user is defined
+      - github_deploy_runner_user | length > 0
+    fail_msg: >-
+      github_deploy_runner_user must be set explicitly by the caller — it has
+      no default (it's repo-specific: each consumer's self-hosted runner has
+      a different OS username). Setting the wrong value here silently
+      revokes the real runner's sudo access on this host.
+
 - name: Configure sudo access for {{ github_deploy_runner_user }} to deploy {{ github_deploy_app_name }}
   copy:
     content: |

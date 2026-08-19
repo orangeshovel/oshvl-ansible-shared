@@ -1,7 +1,12 @@
 ---
 # GitHub Deploy Role - Default Variables
 
-github_deploy_runner_user: "oshvl-github-runner"
+# No default for github_deploy_runner_user — it's inherently repo-specific
+# (each consumer repo's self-hosted runner has a different OS username).
+# A default here previously caused a real production incident: it silently
+# applied orangeshovel's runner user to another consumer repo's sudoers
+# config, revoking that repo's actual runner's sudo access. Every caller
+# must set it explicitly; see this role's README.
 github_deploy_allowed_commands:
   - /usr/bin/chgrp
   - /usr/bin/chmod
