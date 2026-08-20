@@ -1,0 +1,175 @@
+---
+# GitHub Runner role tasks
+# Note: python-app and app-user roles handle package installation and user creation
+
+- name: Assert github_repo and runner_user are set
+  assert:
+    that:
+      - github_repo is defined
+      - github_repo | length > 0
+      - runner_user is defined
+      - runner_user | length > 0
+    fail_msg: >-
+      github_repo and runner_user must both be set explicitly by the caller
+      — neither has a default (each consumer repo's runner registers
+      against its own repo, under its own OS username). Setting either
+      wrong here silently registers/administers the wrong repo's runner and
+      can revoke the real runner's sudo access on this host.
+
+- name: Create actions-runner directory
+  file:
+    path: "{{ runner_dir }}"
+    state: directory
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: '0755'
+
+- name: Check if runner is already downloaded
+  stat:
+    path: "{{ runner_dir }}/config.sh"
+  register: runner_downloaded
+
+- name: Download GitHub Actions runner
+  get_url:
+    url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}/actions-runner-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+    dest: "/tmp/actions-runner-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+    mode: '0644'
+  when: not runner_downloaded.stat.exists
+
+- name: Extract GitHub Actions runner
+  unarchive:
+    src: "/tmp/actions-runner-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+    dest: "{{ runner_dir }}"
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    remote_src: yes
+  when: not runner_downloaded.stat.exists
+
+- name: Install runner dependencies
+  command: "{{ runner_dir }}/bin/installdependencies.sh"
+  when: not runner_downloaded.stat.exists
+
+- name: Check if runner is already configured
+  stat:
+    path: "{{ runner_dir }}/.credentials"
+  register: runner_configured
+
+- name: Get GitHub registration token
+  uri:
+    url: "https://api.github.com/repos/{{ github_repo }}/actions/runners/registration-token"
+    method: POST
+    headers:
+      Authorization: "token {{ github_token }}"
+      Accept: "application/vnd.github.v3+json"
+    status_code: 201
+  register: registration_token_response
+  when: not runner_configured.stat.exists and github_token is defined and not (runner_force_reregister | default(false))
+  no_log: true
+
+- name: Configure GitHub Actions runner
+  command: >
+    {{ runner_dir }}/config.sh
+    --url https://github.com/{{ github_repo }}
+    --token {{ registration_token_response.json.token }}
+    --name {{ runner_name }}
+    --work {{ runner_dir }}/_work
+    --unattended
+    --replace
+  args:
+    chdir: "{{ runner_dir }}"
+  become: yes
+  become_user: "{{ runner_user }}"
+  when: not runner_configured.stat.exists and registration_token_response is defined and not (runner_force_reregister | default(false))
+  no_log: true
+
+- name: Stop runner service before re-registration
+  systemd:
+    name: github-runner
+    state: stopped
+  when: runner_force_reregister | default(false)
+  ignore_errors: true
+
+- name: Remove existing runner registration (force re-register)
+  command: >
+    {{ runner_dir }}/config.sh remove --token {{ runner_token }}
+  args:
+    chdir: "{{ runner_dir }}"
+  become: yes
+  become_user: "{{ runner_user }}"
+  when: runner_force_reregister | default(false) and runner_token is defined
+  ignore_errors: true
+
+- name: Remove stale runner credential files
+  file:
+    path: "{{ runner_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - .credentials
+    - .runner
+    - .credentials_rsaparams
+  become: yes
+  become_user: "{{ runner_user }}"
+  when: runner_force_reregister | default(false)
+
+- name: Re-register runner with new URL
+  command: >
+    {{ runner_dir }}/config.sh
+    --url https://github.com/{{ github_repo }}
+    --token {{ runner_token }}
+    --name {{ runner_name }}
+    --work {{ runner_dir }}/_work
+    --unattended
+    --replace
+  args:
+    chdir: "{{ runner_dir }}"
+  become: yes
+  become_user: "{{ runner_user }}"
+  when: runner_force_reregister | default(false) and runner_token is defined
+
+- name: Restart runner service after re-registration
+  systemd:
+    name: github-runner
+    state: restarted
+  when: runner_force_reregister | default(false) and runner_token is defined
+
+- name: Create systemd service for GitHub Actions runner
+  template:
+    src: github-runner.service.j2
+    dest: /etc/systemd/system/github-runner.service
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart github-runner
+
+- name: Enable and start GitHub Actions runner service
+  systemd:
+    name: github-runner
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Create secure secrets directory for github-runner
+  file:
+    path: "{{ runner_home }}/.secrets"
+    state: directory
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: '0700'
+
+- name: Create accessible secrets file for CI workflows
+  copy:
+    content: |
+      # Deployment secrets for GitHub Actions workflows.
+      # This file is created by Ansible and contains vault-decrypted values.
+      # Bash-sourceable (export, not YAML) - e.g. ci_notify.sh does
+      # `source ~/.secrets/deployment_secrets.yml` to pick these up without
+      # needing them passed through the workflow's own env:.
+      {% for key, value in runner_secrets_env.items() %}
+      export {{ key }}="{{ value }}"
+      {% endfor %}
+    dest: "{{ runner_home }}/.secrets/deployment_secrets.yml"
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: '0600'
+  when: runner_secrets_env | length > 0
+  no_log: true

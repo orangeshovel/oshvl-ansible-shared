@@ -1,0 +1,21 @@
+---
+# GitHub Runner role defaults
+
+# No default for github_repo or runner_user — both are inherently
+# repo-specific (each consumer's runner registers against its own repo,
+# under its own OS username). A default here previously caused a real
+# production incident in the sibling github_deploy role: a shared default
+# silently applied one repo's identity to another repo, revoking that
+# repo's actual runner's sudo access. Every caller must set both explicitly;
+# see this role's README.
+runner_home: "/home/{{ runner_user }}"
+runner_dir: "{{ runner_home }}/actions-runner"
+runner_version: "2.311.0"
+runner_arch: "linux-x64"
+runner_name: "{{ ansible_hostname }}-runner"
+
+# Dict of {ENV_VAR_NAME: value} written as `export`-style lines into
+# ~/.secrets/deployment_secrets.yml, sourced by CI tooling (e.g.
+# ci_notify.sh) on this host. Empty by default — the shared role makes no
+# assumptions about which secrets a given repo's runner needs.
+runner_secrets_env: {}

@@ -1,0 +1,10 @@
+---
+# GitHub Runner role handlers
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: restart github-runner
+  systemd:
+    name: github-runner
+    state: restarted
