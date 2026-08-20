@@ -1,0 +1,47 @@
+[Unit]
+Description={{ systemd_service_description }}
+{% for dep in systemd_service_after %}
+After={{ dep }}
+{% endfor %}
+{% for dep in systemd_service_wants %}
+Wants={{ dep }}
+{% endfor %}
+
+[Service]
+Type={{ systemd_service_type }}
+User={{ systemd_service_user }}
+{% if systemd_service_group is defined %}
+Group={{ systemd_service_group }}
+{% endif %}
+WorkingDirectory={{ systemd_service_working_dir }}
+
+{% for key, value in systemd_service_environment.items() %}
+Environment="{{ key }}={{ value }}"
+{% endfor %}
+
+{% if systemd_service_environment_file is defined %}
+# Load environment variables from .env file
+EnvironmentFile={{ systemd_service_environment_file }}
+{% endif %}
+
+ExecStart={{ systemd_service_exec_start }}
+
+{% if systemd_service_restart is defined %}
+Restart={{ systemd_service_restart }}
+RestartSec={{ systemd_service_restart_sec | default('30s') }}
+{% endif %}
+
+# Logging to journal
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+{% if systemd_service_private_tmp %}
+PrivateTmp=yes
+{% endif %}
+{% if systemd_service_no_new_privileges %}
+NoNewPrivileges=yes
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+---
+# Systemd Service Role - Tasks
+
+- name: Deploy {{ systemd_service_name }} systemd service unit
+  template:
+    src: service.j2
+    dest: /etc/systemd/system/{{ systemd_service_name }}.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart service
+
+- name: Deploy {{ systemd_service_name }} systemd timer unit
+  template:
+    src: timer.j2
+    dest: /etc/systemd/system/{{ systemd_service_name }}.timer
+    owner: root
+    group: root
+    mode: '0644'
+  when: systemd_timer_enabled
+  notify:
+    - reload systemd
+    - restart timer
+
+- name: Enable and start {{ systemd_service_name }} timer
+  systemd:
+    name: "{{ systemd_service_name }}.timer"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  when: systemd_timer_enabled
+
+- name: Enable {{ systemd_service_name }} service (no timer)
+  systemd:
+    name: "{{ systemd_service_name }}.service"
+    enabled: yes
+    daemon_reload: yes
+  when: not systemd_timer_enabled

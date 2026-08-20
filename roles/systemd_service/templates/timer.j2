@@ -1,0 +1,12 @@
+[Unit]
+Description={{ systemd_service_description }} Timer
+Requires={{ systemd_service_name }}.service
+
+[Timer]
+OnCalendar={{ systemd_timer_on_calendar }}
+{% if systemd_timer_persistent %}
+Persistent=true
+{% endif %}
+
+[Install]
+WantedBy=timers.target

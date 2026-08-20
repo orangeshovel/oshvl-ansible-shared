@@ -1,0 +1,14 @@
+---
+# Systemd Service Role - Default Variables
+
+systemd_service_type: "oneshot"
+systemd_service_after:
+  - network-online.target
+systemd_service_wants:
+  - network-online.target
+systemd_service_environment: {}
+systemd_timer_enabled: false
+systemd_timer_on_calendar: "*-*-* 00:00:00"
+systemd_timer_persistent: true
+systemd_service_private_tmp: true
+systemd_service_no_new_privileges: true

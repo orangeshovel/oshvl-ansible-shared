@@ -1,0 +1,33 @@
+---
+# Systemd Service Role - Handlers
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: restart service
+  when: not systemd_timer_enabled
+  block:
+    - name: restart service
+      systemd:
+        name: "{{ systemd_service_name }}.service"
+        state: restarted
+  rescue:
+    # block/rescue reliably catches this failure regardless of whether the
+    # systemd module returns a clean fail_json() or crashes outright (e.g.
+    # "Job for X.service failed because of unavailable resources") — plain
+    # ignore_errors on the task did not suppress the latter, which fataled
+    # the whole play on first bootstrap before any code was deployed.
+    - name: warn if service failed to start
+      debug:
+        msg: >
+          WARNING: {{ systemd_service_name }}.service could not be started
+          ({{ ansible_failed_result.msg | default('unknown error') }}).
+          This is expected on first deploy before code is available.
+          Check: systemctl status {{ systemd_service_name }}.service
+
+- name: restart timer
+  systemd:
+    name: "{{ systemd_service_name }}.timer"
+    state: restarted
+  when: systemd_timer_enabled
