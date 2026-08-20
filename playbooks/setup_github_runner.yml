@@ -1,0 +1,41 @@
+---
+# Provisions an already-existing compute node (LXC/VM) to become a
+# self-hosted GitHub Actions runner, ready to have apps deployed to it.
+# Does not create the host itself — target it via an inventory entry your
+# own playbook/inventory already defines. Chains python_app -> app_user ->
+# github_runner; app-deployment roles (app_directories, app_env,
+# github_deploy, etc.) are applied later, per-app, by each app's own
+# deploy playbook — not by this one.
+#
+# Required vars:
+#   target_host   - inventory host/group to provision
+#   github_repo   - owner/repo this runner registers against
+#   runner_user   - OS user the runner service runs as
+#
+# Optional vars:
+#   github_token           - GitHub token with repo/admin:actions scope (first run only)
+#   runner_secrets_env     - dict of {ENV_VAR_NAME: value} written to deployment_secrets.yml
+#   python_app_extra_packages - additional OS packages beyond the runner's own requirements
+#
+# Usage (e.g. from a consumer repo's own bootstrap playbook):
+#   ansible-playbook oshvl.infra.setup_github_runner \
+#     -i inventory/production \
+#     -e target_host=compute.example.lan \
+#     -e github_repo=your-owner/your-repo \
+#     -e runner_user=your-repo-runner \
+#     --ask-vault-pass --ask-become-pass
+
+- name: Provision compute node as a GitHub Actions runner
+  hosts: "{{ target_host }}"
+  become: yes
+  vars:
+    python_app_extra_packages: "{{ github_runner_extra_packages | default(['curl', 'wget', 'tar', 'jq', 'sudo']) }}"
+  roles:
+    - role: oshvl.infra.python_app
+
+    - role: oshvl.infra.app_user
+      vars:
+        app_user_name: "{{ runner_user }}"
+        app_user_comment: "GitHub Actions Runner"
+
+    - role: oshvl.infra.github_runner
