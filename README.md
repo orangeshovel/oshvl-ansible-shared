@@ -1,9 +1,6 @@
 # oshvl.infra
 
-Shared Ansible collection consumed by three independently-owned repos
-(`orangeshovel`, `lonebirchlab`, `projectunmute`), each deploying to its own
-infrastructure via its own self-hosted GitHub Actions runner. Public so
-cross-owner `ansible-galaxy collection install` works with no access grant.
+Shared Ansible collection consumed by repos worked on by orangeshovel and deployed via self-hosted GitHub Actions runner on orangeshovel infrastructure. Public so cross-owner `ansible-galaxy collection install` works with no access grant.
 
 Referenced via a floating git ref (`version: main`) in each consumer repo's
 `infra/ansible/requirements.yml` — no version pinning. Unlike this org's
