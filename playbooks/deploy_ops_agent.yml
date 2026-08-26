@@ -15,12 +15,17 @@
 #   ops_agent_runner_user  - OS user the org's self-hosted runner runs as
 #   ops_agent_targets      - list of cleanup target dicts (see
 #                            oshvl-ops-agent-shared/targets.yml.example)
+#
+# Required only when ops_agent_enable_daily is true (the default):
 #   ops_agent_db_host/db_name/db_user/db_password - PostgreSQL connection
 #                            for the daily backup job
 #   ops_agent_s3_bucket    - S3 bucket for the daily backup job
 #   ops_agent_shovel_bot_api_key - shovel.bot API key for alerts/digest
 #
 # Optional vars:
+#   ops_agent_enable_daily      - default true. Set false for an org with no
+#                            existing DB backup / S3 / shovel.bot integration
+#                            to deploy (see cleanup mode below).
 #   ops_agent_apply             - "true"/"false", default "false" (dry-run)
 #   ops_agent_daily_schedule    - default "05:05:00"
 #   ops_agent_cleanup_schedule  - default "weekly"
@@ -30,6 +35,14 @@
 #   ops_agent_s3_region         - default "us-east-1"
 #   ops_agent_shovel_bot_url    - default "https://api.shovel.bot"
 #   ops_agent_shovel_bot_channel - default "#all-orangeshovel"
+#
+# Cleanup-only mode (ops_agent_enable_daily: false): skips the daily
+# backup/log-monitor/digest job and its systemd unit entirely — only the
+# weekly disk-cleanup job gets deployed. For an org with no existing
+# Postgres-backup/S3/shovel.bot setup to plug into, this avoids either
+# fabricating placeholder secrets or provisioning new cloud infrastructure
+# just to stand up disk cleanup. None of the daily-job vars above need to be
+# set in this mode.
 #
 # Usage (e.g. from a consumer repo's own compute-node ops-agent playbook):
 #   ansible-playbook oshvl.infra.deploy_ops_agent \
@@ -69,8 +82,8 @@
   roles:
     - role: oshvl.infra.python_app
       vars:
-        python_app_extra_packages:
-          - awscli
+        python_app_extra_packages: >-
+          {{ ['awscli'] if (ops_agent_enable_daily | default(true) | bool) else [] }}
 
     - role: oshvl.infra.app_user
       vars:
@@ -98,20 +111,22 @@
           REPORT_DIR: "{{ ops_agent_report_dir }}"
           RUNNER_USER: "{{ ops_agent_runner_user }}"
           RUNNER_HOME: "/home/{{ ops_agent_runner_user }}"
-          # Daily job — database backup
+          # Daily job — database backup (unused, left blank, when
+          # ops_agent_enable_daily is false — no daily systemd unit exists
+          # to ever read them in that mode)
           EXPORT_DIR: "{{ ops_agent_export_dir }}"
-          PG_HOST: "{{ ops_agent_db_host }}"
+          PG_HOST: "{{ ops_agent_db_host | default('') }}"
           PG_PORT: "{{ ops_agent_db_port | default('5432') }}"
-          PG_DATABASE: "{{ ops_agent_db_name }}"
-          PG_USER: "{{ ops_agent_db_user }}"
-          PG_PASSWORD: "{{ ops_agent_db_password }}"
-          S3_BUCKET: "{{ ops_agent_s3_bucket }}"
+          PG_DATABASE: "{{ ops_agent_db_name | default('') }}"
+          PG_USER: "{{ ops_agent_db_user | default('') }}"
+          PG_PASSWORD: "{{ ops_agent_db_password | default('') }}"
+          S3_BUCKET: "{{ ops_agent_s3_bucket | default('') }}"
           S3_REGION: "{{ ops_agent_s3_region | default('us-east-1') }}"
           AWS_ACCESS_KEY_ID: "{{ ops_agent_aws_access_key_id | default('') }}"
           AWS_SECRET_ACCESS_KEY: "{{ ops_agent_aws_secret_access_key | default('') }}"
           # Daily job — Slack via shovel.bot
           SHOVEL_BOT_URL: "{{ ops_agent_shovel_bot_url | default('https://api.shovel.bot') }}"
-          SHOVEL_BOT_API_KEY: "{{ ops_agent_shovel_bot_api_key }}"
+          SHOVEL_BOT_API_KEY: "{{ ops_agent_shovel_bot_api_key | default('') }}"
           SHOVEL_BOT_CHANNEL: "{{ ops_agent_shovel_bot_channel | default('#all-orangeshovel') }}"
 
     - role: oshvl.infra.ops_agent_sudo
@@ -122,6 +137,7 @@
           {{ ops_agent_claude_version_homes | default(['/home/' + ops_agent_runner_user]) }}
 
     - role: oshvl.infra.systemd_service
+      when: ops_agent_enable_daily | default(true) | bool
       vars:
         systemd_service_name: oshvl-ops-agent-daily
         systemd_service_description: "oshvl-ops-agent daily backup, log monitor, and digest"
@@ -162,13 +178,14 @@
     - role: oshvl.infra.log_rotation
       vars:
         logrotate_name: oshvl-ops-agent
-        logrotate_configs:
+        _logrotate_logs_config:
           - logs:
               - "{{ ops_agent_log_dir }}/*.log"
             user: "{{ app_user }}"
             group: service-accounts
             rotate: 90
             size: 50M
+        _logrotate_exports_config:
           - logs:
               - "{{ ops_agent_export_dir }}/*.sql"
               - "{{ ops_agent_export_dir }}/*.sql.gz"
@@ -177,6 +194,8 @@
             rotate: 7
             size: 100M
             compress: false
+        logrotate_configs: >-
+          {{ _logrotate_logs_config + (_logrotate_exports_config if (ops_agent_enable_daily | default(true) | bool) else []) }}
 
   post_tasks:
     # Runs after app_directories (which creates repo/ and current/ as plain
