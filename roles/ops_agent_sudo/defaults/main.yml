@@ -1,0 +1,12 @@
+---
+# Ops Agent Sudo Role - Default Variables
+
+ops_agent_sudo_app_user: ops-agent
+
+# No defaults for ops_agent_sudo_runner_home or ops_agent_sudo_claude_version_homes
+# — both are host-specific (each org's runner uses a different OS user, so a
+# wrong default here would point the root helper at the wrong home directory).
+# Every caller must set these explicitly; see this role's README.
+
+ops_agent_sudo_journal_vacuum_size: "500M"
+ops_agent_sudo_claude_keep_newest_n: 3

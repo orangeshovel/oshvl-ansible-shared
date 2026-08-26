@@ -1,0 +1,57 @@
+---
+# Ops Agent Sudo Role - Tasks
+#
+# Grants oshvl-ops-agent's unprivileged service user root access to exactly
+# one fixed, root-owned helper script — not a blanket root service, and not
+# a raw-verb sudoers whitelist (unlike oshvl.infra.github_deploy, which is
+# fine whitelisting verbs like chgrp/chmod/cp because those are safe with
+# CI-controlled args; a disk-cleanup tool whitelisting "rm -rf" with any
+# caller-controlled path would be a shell-injection-shaped foot-gun).
+#
+# The helper is deployed outside app_directories' group-writable
+# (0775, service-accounts) /opt/oshvl-ops-agent/current/ tree deliberately —
+# every app's service user shares the service-accounts group, so a script
+# living inside that tree could be read or tampered with by any other app's
+# service user. This role creates its own root:root 0700 directory instead.
+
+- name: Assert ops_agent_sudo_runner_home is set
+  assert:
+    that:
+      - ops_agent_sudo_runner_home is defined
+      - ops_agent_sudo_runner_home | length > 0
+    fail_msg: >-
+      ops_agent_sudo_runner_home must be set explicitly by the caller — it
+      has no default (it's host-specific: each org's self-hosted runner has
+      a different OS username, e.g. oshvl-github-runner / github-runner /
+      unmute-github-runner). A wrong value here points the root helper's
+      cache-pruning actions at the wrong home directory.
+
+- name: Create root-helper directory (outside the group-writable app tree)
+  file:
+    path: /opt/oshvl-ops-agent/root-helper
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy root_cleanup_helper.py
+  template:
+    src: root_cleanup_helper.py.j2
+    dest: /opt/oshvl-ops-agent/root-helper/root_cleanup_helper.py
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Grant ops-agent sudo access to exactly the root helper script
+  copy:
+    content: |
+      # Deployed by oshvl.infra.ops_agent_sudo — do not edit by hand.
+      # Exactly one fixed absolute path, no verb list, no ALL, no
+      # caller-supplied arguments beyond the helper's own closed
+      # --action {enum} + --apply flag.
+      {{ ops_agent_sudo_app_user }} ALL=(root) NOPASSWD: /opt/oshvl-ops-agent/root-helper/root_cleanup_helper.py
+    dest: /etc/sudoers.d/oshvl-ops-agent
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"

@@ -1,0 +1,25 @@
+# Deployed by oshvl.infra.deploy_ops_agent — do not edit by hand.
+
+# Cleanup job
+APPLY={{ app_env_vars.APPLY }}
+LOG_DIR={{ app_env_vars.LOG_DIR }}
+REPORT_DIR={{ app_env_vars.REPORT_DIR }}
+RUNNER_USER={{ app_env_vars.RUNNER_USER }}
+RUNNER_HOME={{ app_env_vars.RUNNER_HOME }}
+
+# Daily job — database backup
+EXPORT_DIR={{ app_env_vars.EXPORT_DIR }}
+PG_HOST={{ app_env_vars.PG_HOST }}
+PG_PORT={{ app_env_vars.PG_PORT }}
+PG_DATABASE={{ app_env_vars.PG_DATABASE }}
+PG_USER={{ app_env_vars.PG_USER }}
+PG_PASSWORD={{ app_env_vars.PG_PASSWORD }}
+S3_BUCKET={{ app_env_vars.S3_BUCKET }}
+S3_REGION={{ app_env_vars.S3_REGION }}
+AWS_ACCESS_KEY_ID={{ app_env_vars.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY={{ app_env_vars.AWS_SECRET_ACCESS_KEY }}
+
+# Daily job — Slack via shovel.bot
+SHOVEL_BOT_URL={{ app_env_vars.SHOVEL_BOT_URL }}
+SHOVEL_BOT_API_KEY={{ app_env_vars.SHOVEL_BOT_API_KEY }}
+SHOVEL_BOT_CHANNEL={{ app_env_vars.SHOVEL_BOT_CHANNEL }}

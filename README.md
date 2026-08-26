@@ -23,19 +23,37 @@ once they were confirmed byte-identical or safely parameterized via
 - `app_directories` — create `/opt/{app}/` and `/app-data/{app}/` layout
 - `app_env` — deploy an app's `.env` file from Ansible Vault vars
 - `log_rotation` — configure logrotate for an app
+- `systemd_service` — create a systemd service + optional timer
 - `ssh_keys` — generate SSH keys for a service user, manage known_hosts
   (currently used by orangeshovel and lonebirchlab only)
 - `github_deploy` — grant a GitHub Actions runner user sudo permissions to
   deploy an app
+- `ops_agent_sudo` — grant `oshvl-ops-agent`'s service user sudo access to
+  exactly one fixed root-owned helper script, for the handful of
+  compute-node housekeeping operations that need to touch paths outside
+  `/opt/*`/`/app-data/*` (see the role's own README for why this is shaped
+  differently from `github_deploy`'s raw-verb whitelist)
 
 **Deliberately excluded**, not yet shareable:
 
-- `systemd-service` — behavior diverged across repos (see each consumer
-  repo's own copy); needs all three repos aligned on identical handler
-  behavior before it's safe to extract. Tracked as a follow-up.
 - `oshvl-github-runner` / `unmute-github-runner` (and equivalents) — GitHub
   Actions runner registration is inherently repo-specific (each points at
   its own repo for registration); not a sharing candidate.
+
+## Playbooks
+
+Full, FQCN-referenced playbooks (not just roles) for logic that's identical
+across all three consumer repos and shouldn't be hand-copied into each one:
+
+- `setup_github_runner.yml` (`oshvl.infra.setup_github_runner`) — provisions
+  an existing compute node as a self-hosted GitHub Actions runner
+- `deploy_ops_agent.yml` (`oshvl.infra.deploy_ops_agent`) — deploys
+  `oshvl-ops-agent-shared` (compute-node disk cleanup + the daily
+  backup/log-monitor/digest job originally extracted from orangeshovel's
+  `shovel.watch`); each consumer repo's own compute-node setup playbook
+  imports this with a small per-host `vars:` block (runner username, DB/S3
+  connection details, cleanup target list) rather than duplicating the
+  deploy logic itself
 
 ## Usage from a consumer repo
 
