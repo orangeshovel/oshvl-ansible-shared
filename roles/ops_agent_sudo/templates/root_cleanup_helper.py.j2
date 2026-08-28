@@ -51,11 +51,39 @@ def _runner_is_busy() -> bool:
     return "Runner.Worker" in result.stdout
 
 
+def _path_size_bytes(path: Path) -> int:
+    """Best-effort size, root-privileged so this can stat paths the caller
+    (ops-agent) cannot. Returns 0 rather than raising on any access error --
+    an inaccurate size estimate is fine, refusing to delete over it is not."""
+    try:
+        if path.is_symlink() or path.is_file():
+            return path.lstat().st_size
+        total = 0
+        for child in path.rglob("*"):
+            try:
+                if child.is_file() and not child.is_symlink():
+                    total += child.lstat().st_size
+            except OSError:
+                continue
+        return total
+    except OSError:
+        return 0
+
+
 def _delete_path(path: Path) -> None:
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path)
     else:
         path.unlink()
+
+
+def _report(path: Path, apply: bool) -> None:
+    # Trailing `[size=N]` is machine-parsed by ops_agent.executor on the
+    # caller side to populate bytes_reclaimed -- keep this exact format if
+    # touching either side.
+    size = _path_size_bytes(path)
+    verb = "deleting" if apply else "[dry-run] would delete"
+    print(f"{verb} {path} [size={size}]")
 
 
 def _prune_by_age(base_dir: str, max_age_days: int, apply: bool) -> None:
@@ -70,11 +98,9 @@ def _prune_by_age(base_dir: str, max_age_days: int, apply: bool) -> None:
                 continue
         except OSError:
             continue
+        _report(child, apply)
         if apply:
-            print(f"deleting {child}")
             _delete_path(child)
-        else:
-            print(f"[dry-run] would delete {child}")
 
 
 def _prune_keep_newest_n(base_dir: str, keep_newest_n: int, apply: bool) -> None:
@@ -90,11 +116,9 @@ def _prune_keep_newest_n(base_dir: str, keep_newest_n: int, apply: bool) -> None
             continue
     dated.sort(key=lambda pair: pair[0], reverse=True)
     for _, child in dated[keep_newest_n:]:
+        _report(child, apply)
         if apply:
-            print(f"deleting {child}")
             _delete_path(child)
-        else:
-            print(f"[dry-run] would delete {child}")
 
 
 def _journal_vacuum(apply: bool) -> None:
@@ -131,7 +155,8 @@ def _list_orphaned_homes() -> None:
             continue
         if mtime >= cutoff:
             continue
-        print(f"candidate orphaned home (report-only, never auto-deleted): {entry}")
+        size = _path_size_bytes(entry)
+        print(f"candidate orphaned home (report-only, never auto-deleted): {entry} [size={size}]")
 
 
 def main() -> int:
