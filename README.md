@@ -10,6 +10,21 @@ deploy, not just break a CI pipeline — that tradeoff is accepted
 deliberately, consistent with the CI project's "no gate, accept the risk"
 stance, not an oversight.
 
+**Roles only — deliberately no playbooks.** `import_playbook:
+oshvl.infra.<name>` does not resolve a collection-qualified name from
+inside another playbook file in the ansible-core version every consumer
+runs (confirmed by testing and source inspection; no workaround found).
+Only a bare `ansible-playbook oshvl.infra.<name>` main CLI argument
+resolves, which can't itself be invoked from inside another playbook's own
+`import_playbook` chain — so a "shared playbook" here is structurally
+unable to plug into any consumer's `setup_compute_master.yml` bootstrap
+chain without a local mirror copy defeating the point of sharing it. Two
+playbooks (`setup_github_runner.yml`, `deploy_ops_agent.yml`) briefly lived
+here and were removed once every consumer had its own local playbook
+instead — see each consumer repo's `infra/ansible/playbooks/services/*/`
+for the working pattern: a local playbook that picks the roles it needs by
+FQCN, same as any of the roles below.
+
 ## Contents
 
 Roles present in more than one of the three consumer repos, extracted here
@@ -39,21 +54,7 @@ once they were confirmed byte-identical or safely parameterized via
 - `oshvl-github-runner` / `unmute-github-runner` (and equivalents) — GitHub
   Actions runner registration is inherently repo-specific (each points at
   its own repo for registration); not a sharing candidate.
-
-## Playbooks
-
-Full, FQCN-referenced playbooks (not just roles) for logic that's identical
-across all three consumer repos and shouldn't be hand-copied into each one:
-
-- `setup_github_runner.yml` (`oshvl.infra.setup_github_runner`) — provisions
-  an existing compute node as a self-hosted GitHub Actions runner
-- `deploy_ops_agent.yml` (`oshvl.infra.deploy_ops_agent`) — deploys
-  `oshvl-ops-agent-shared` (compute-node disk cleanup + the daily
-  backup/log-monitor/digest job originally extracted from orangeshovel's
-  `shovel.watch`); each consumer repo's own compute-node setup playbook
-  imports this with a small per-host `vars:` block (runner username, DB/S3
-  connection details, cleanup target list) rather than duplicating the
-  deploy logic itself
+- Full playbooks of any kind — see "Roles only" above.
 
 ## Usage from a consumer repo
 

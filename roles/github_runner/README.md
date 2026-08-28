@@ -75,4 +75,4 @@ applying the wrong repo's identity.
 ## Related
 
 - **`oshvl.infra.github_deploy`**: grants the runner user sudo permissions to deploy applications; used per-app, not by this role.
-- **`oshvl.infra.setup_github_runner`** playbook: chains `python_app` → `app_user` → this role to provision a new compute node end-to-end.
+- Each consumer repo's own `infra/ansible/playbooks/services/{oshvl-github-runner,github-runner}/setup_github_actions_runner.yml` chains `python_app` → `app_user` → this role to provision a new compute node end-to-end (a local playbook, not a shared one — see this collection's own README for why).
