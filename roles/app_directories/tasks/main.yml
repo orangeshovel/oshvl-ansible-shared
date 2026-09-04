@@ -31,7 +31,7 @@
     state: directory
     owner: "{{ app_dir_user }}"
     group: "{{ app_dir_group }}"
-    mode: "{{ app_dir_mode_writable }}"
+    mode: "{{ app_dir_mode_log }}"
   when: app_log_dir is defined
 
 - name: Create {{ app_dir_name }} data directory
