@@ -4,3 +4,10 @@
 app_dir_group: "service-accounts"
 app_dir_mode_base: "0755"
 app_dir_mode_writable: "0775"
+# Setgid so files the app process creates at runtime (e.g. its log file, written as
+# app_dir_user:app_dir_group but only ever by the app's own service user) inherit
+# app_dir_group automatically -- without it, a plain 0775 directory still leaves new
+# files owned by the creating process's own primary group, invisible to any other
+# service-accounts member (a CI runner, an ops agent, ...) that needs to read/write
+# them too.
+app_dir_mode_log: "02775"

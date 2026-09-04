@@ -46,12 +46,17 @@ Creates standardized directory structure for Python applications deployed via Gi
 | `app_dir_group` | No | `service-accounts` | Owner group |
 | `app_log_dir` | No | - | Separate log directory (e.g., `/app-data/myapp/logs`) |
 | `app_data_dir` | No | - | Additional data directory |
+| `app_dir_mode_log` | No | `02775` (setgid) | Mode for `app_log_dir` |
 
 ## Created Directories
 
 - `{app_dir_base}/repo` - 0775 (group writable for deployments)
 - `{app_dir_base}/current` - 0775 (group writable)
-- `{app_log_dir}` - 0775 (if specified)
+- `{app_log_dir}` - 02775 (setgid, if specified) — the setgid bit matters here
+  specifically: the app process itself creates its log file at runtime (not this
+  role, and not the deploying CI user), so without setgid that file inherits the
+  app's own primary group rather than `app_dir_group`, leaving it unwritable by any
+  other `service-accounts` member (a CI runner running e2e tests, an ops agent, etc.)
 - `{app_data_dir}` - 0775 (if specified)
 
 ## Dependencies
