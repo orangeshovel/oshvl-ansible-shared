@@ -48,6 +48,12 @@ once they were confirmed byte-identical or safely parameterized via
   compute-node housekeeping operations that need to touch paths outside
   `/opt/*`/`/app-data/*` (see the role's own README for why this is shaped
   differently from `github_deploy`'s raw-verb whitelist)
+- `github_runner` — install and register a self-hosted GitHub Actions
+  runner against a specific repo (identity vars have no default — see the
+  role's own README for why)
+- `jaeger` — install and run Jaeger (OpenTelemetry trace backend) as a
+  systemd service from a downloaded release binary, no Docker (currently
+  used by orangeshovel only)
 
 **Deliberately excluded**, not yet shareable:
 

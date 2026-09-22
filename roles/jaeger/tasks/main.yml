@@ -1,0 +1,101 @@
+---
+# Jaeger role tasks
+# Downloads the official Jaeger v2 release binary (all-in-one: OTLP
+# receiver + Badger storage + UI in one process) and runs it as a systemd
+# service. No Docker anywhere in this collection — same class of
+# installation as github_runner's tarball-download pattern, not the
+# generic systemd_service role (that role's tasks run before any
+# consumer's own post_tasks could fetch a binary, which would hit a
+# start-failure warning on first deploy; doing the download+config+start
+# sequence entirely within this role's own task list avoids that
+# ordering problem rather than working around it after the fact).
+
+- name: Create Jaeger base directory
+  ansible.builtin.file:
+    path: "{{ jaeger_base_dir }}/bin"
+    state: directory
+    owner: "{{ jaeger_user }}"
+    group: "{{ jaeger_user }}"
+    mode: '0755'
+
+- name: Create Jaeger data directory
+  ansible.builtin.file:
+    path: "{{ jaeger_data_dir }}"
+    state: directory
+    owner: "{{ jaeger_user }}"
+    group: "{{ jaeger_user }}"
+    mode: '0750'
+
+- name: Check if this Jaeger version is already installed
+  ansible.builtin.stat:
+    path: "{{ jaeger_base_dir }}/bin/jaeger-{{ jaeger_version }}"
+  register: jaeger_binary_installed
+
+- name: Download Jaeger release tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/jaegertracing/jaeger/releases/download/v{{ jaeger_version }}/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
+    dest: "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
+    checksum: "sha256:https://github.com/jaegertracing/jaeger/releases/download/v{{ jaeger_version }}/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz.sha256sum.txt"
+    mode: '0644'
+  when: not jaeger_binary_installed.stat.exists
+
+- name: Extract Jaeger tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
+    dest: /tmp
+    remote_src: yes
+  when: not jaeger_binary_installed.stat.exists
+
+- name: Install versioned Jaeger binary
+  ansible.builtin.copy:
+    src: "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}/jaeger"
+    dest: "{{ jaeger_base_dir }}/bin/jaeger-{{ jaeger_version }}"
+    remote_src: yes
+    owner: "{{ jaeger_user }}"
+    group: "{{ jaeger_user }}"
+    mode: '0755'
+  when: not jaeger_binary_installed.stat.exists
+
+- name: Clean up downloaded tarball and extracted temp dir
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
+    - "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}"
+  when: not jaeger_binary_installed.stat.exists
+
+- name: Symlink jaeger -> the active version
+  ansible.builtin.file:
+    src: "{{ jaeger_base_dir }}/bin/jaeger-{{ jaeger_version }}"
+    dest: "{{ jaeger_base_dir }}/bin/jaeger"
+    state: link
+    force: yes
+    owner: "{{ jaeger_user }}"
+    group: "{{ jaeger_user }}"
+  notify: restart jaeger
+
+- name: Deploy Jaeger config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ jaeger_base_dir }}/config.yaml"
+    owner: "{{ jaeger_user }}"
+    group: "{{ jaeger_user }}"
+    mode: '0640'
+  notify: restart jaeger
+
+- name: Create Jaeger systemd service
+  ansible.builtin.template:
+    src: jaeger.service.j2
+    dest: /etc/systemd/system/jaeger.service
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart jaeger
+
+- name: Enable and start Jaeger service
+  ansible.builtin.systemd:
+    name: jaeger
+    enabled: yes
+    state: started
+    daemon_reload: yes

@@ -1,0 +1,14 @@
+---
+# Jaeger role defaults
+
+jaeger_user: jaeger
+jaeger_base_dir: /opt/jaeger
+jaeger_data_dir: /app-data/jaeger/data
+jaeger_version: "2.21.0"
+jaeger_arch: "linux-amd64"
+
+# Bounds local Badger storage growth — trace data otherwise accumulates
+# forever on local disk with no external store to offload to. 7 days is
+# generous for "what did this run do yesterday/last week" without needing
+# to think about disk usage; bump per-caller if longer history is needed.
+jaeger_span_ttl: "168h"

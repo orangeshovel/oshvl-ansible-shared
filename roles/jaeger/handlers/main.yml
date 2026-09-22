@@ -1,0 +1,11 @@
+---
+# Jaeger role handlers
+
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: restart jaeger
+  ansible.builtin.systemd:
+    name: jaeger
+    state: restarted

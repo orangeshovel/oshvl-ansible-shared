@@ -1,0 +1,20 @@
+[Unit]
+Description=Jaeger OTel trace backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ jaeger_user }}
+Group={{ jaeger_user }}
+WorkingDirectory={{ jaeger_base_dir }}
+ExecStart={{ jaeger_base_dir }}/bin/jaeger --config {{ jaeger_base_dir }}/config.yaml
+Restart=always
+RestartSec=15
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
