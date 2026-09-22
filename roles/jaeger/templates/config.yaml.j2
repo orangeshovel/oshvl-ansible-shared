@@ -1,0 +1,50 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    logs:
+      level: info
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_query:
+    storage:
+      traces: primary_store
+    # No `ui.config_file` — the binary's embedded default UI is used.
+
+  jaeger_storage:
+    backends:
+      primary_store:
+        badger:
+          directories:
+            keys: "{{ jaeger_data_dir }}"
+            values: "{{ jaeger_data_dir }}"
+          ephemeral: false
+          ttl:
+            spans: {{ jaeger_span_ttl }}
+
+receivers:
+  otlp:
+    protocols:
+      # No explicit `endpoint:` — defaults to 127.0.0.1 (loopback). Add
+      # `endpoint: 0.0.0.0:4317` / `:4318` below if a sender on a different
+      # host ever needs to reach this receiver (and reconsider whether
+      # ingest should stay unauthenticated at that point).
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: primary_store
