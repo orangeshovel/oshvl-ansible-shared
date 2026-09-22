@@ -35,7 +35,14 @@
   ansible.builtin.get_url:
     url: "https://github.com/jaegertracing/jaeger/releases/download/v{{ jaeger_version }}/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
     dest: "/tmp/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz"
-    checksum: "sha256:https://github.com/jaegertracing/jaeger/releases/download/v{{ jaeger_version }}/jaeger-{{ jaeger_version }}-{{ jaeger_arch }}.tar.gz.sha256sum.txt"
+    # The per-arch sibling asset (jaeger-{version}-{arch}.sha256sum.txt) only
+    # lists checksums for the files *inside* the tarball, keyed by their
+    # in-archive path (e.g. "jaeger-2.21.0-linux-amd64/jaeger") — get_url
+    # matches by the downloaded file's own name, so that file 404s the
+    # lookup this needs anyway (confirmed against the real v2.21.0 release
+    # assets). The un-suffixed jaeger-{version}.sha256sum.txt is the one
+    # that actually lists per-platform *.tar.gz checksums.
+    checksum: "sha256:https://github.com/jaegertracing/jaeger/releases/download/v{{ jaeger_version }}/jaeger-{{ jaeger_version }}.sha256sum.txt"
     mode: '0644'
   when: not jaeger_binary_installed.stat.exists
 
