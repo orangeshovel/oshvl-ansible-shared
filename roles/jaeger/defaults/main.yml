@@ -3,7 +3,12 @@
 
 jaeger_user: jaeger
 jaeger_base_dir: /opt/jaeger
-jaeger_data_dir: /app-data/jaeger/data
+# Kept traversable by service-accounts (mode 0775, group service-accounts) so
+# other services' housekeeping (e.g. oshvl-ops-agent's log scan, which walks
+# every /app-data/{app} looking for a logs/ subdir) doesn't hit a
+# PermissionError here. jaeger_data_dir below stays private to jaeger_user.
+jaeger_app_data_base: /app-data/jaeger
+jaeger_data_dir: "{{ jaeger_app_data_base }}/data"
 jaeger_version: "2.21.0"
 jaeger_arch: "linux-amd64"
 
