@@ -31,14 +31,15 @@ service, downloaded as a plain release binary — no Docker.
 |----------|----------|---------|-------------|
 | `jaeger_user` | No | `jaeger` | OS user the service runs as — must already exist (see Dependencies) |
 | `jaeger_base_dir` | No | `/opt/jaeger` | Install location for the binary + config |
-| `jaeger_data_dir` | No | `/app-data/jaeger/data` | Badger storage directory |
+| `jaeger_app_data_base` | No | `/app-data/jaeger` | Parent of the data dir below — kept group-`service-accounts`/`0775` so other apps' housekeeping (e.g. oshvl-ops-agent's log scan) can traverse it even though it has no `logs/` subdir of its own |
+| `jaeger_data_dir` | No | `{{ jaeger_app_data_base }}/data` | Badger storage directory — stays private to `jaeger_user` (`0750`) |
 | `jaeger_version` | No | `2.21.0` | Jaeger release version to install |
 | `jaeger_arch` | No | `linux-amd64` | Release tarball architecture |
 | `jaeger_span_ttl` | No | `168h` | Badger retention for trace data — bounds local disk growth, since there's no external store to offload to |
 
 ## What This Role Does
 
-1. **Directories**: creates `{{ jaeger_base_dir }}/bin` and `{{ jaeger_data_dir }}`.
+1. **Directories**: creates `{{ jaeger_base_dir }}/bin`, `{{ jaeger_app_data_base }}` (group `service-accounts`, `0775`), and `{{ jaeger_data_dir }}` (owner-only, `0750`).
 2. **Binary install**: downloads and checksum-verifies the release tarball for
    `jaeger_version` (only if that version isn't already installed), extracts it, and
    installs the binary as `{{ jaeger_base_dir }}/bin/jaeger-{{ jaeger_version }}`, then

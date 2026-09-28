@@ -18,6 +18,14 @@
     group: "{{ jaeger_user }}"
     mode: '0755'
 
+- name: Create Jaeger app-data base directory
+  ansible.builtin.file:
+    path: "{{ jaeger_app_data_base }}"
+    state: directory
+    owner: "{{ jaeger_user }}"
+    group: service-accounts
+    mode: '0775'
+
 - name: Create Jaeger data directory
   ansible.builtin.file:
     path: "{{ jaeger_data_dir }}"
