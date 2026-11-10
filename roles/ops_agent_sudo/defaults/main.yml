@@ -10,3 +10,4 @@ ops_agent_sudo_app_user: ops-agent
 
 ops_agent_sudo_journal_vacuum_size: "500M"
 ops_agent_sudo_claude_keep_newest_n: 3
+ops_agent_sudo_work_max_age_days: 30

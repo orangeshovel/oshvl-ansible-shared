@@ -28,7 +28,7 @@ RUNNER_WORK_DIR = f"{RUNNER_HOME}/actions-runner/_work"
 RUNNER_DIAG_DIR = f"{RUNNER_HOME}/actions-runner/_diag"
 
 MAX_AGE_DAYS_CACHES = 14
-MAX_AGE_DAYS_WORK = 30
+MAX_AGE_DAYS_WORK = {{ ops_agent_sudo_work_max_age_days | default(30) | int }}
 MAX_AGE_DAYS_DIAG = 7
 ORPHANED_HOME_MIN_AGE_DAYS = 90
 
@@ -103,7 +103,9 @@ def _prune_by_age(base_dir: str, max_age_days: int, apply: bool) -> None:
             _delete_path(child)
 
 
-def _prune_keep_newest_n(base_dir: str, keep_newest_n: int, apply: bool) -> None:
+def _prune_keep_newest_n(
+    base_dir: str, keep_newest_n: int, apply: bool, protect: "Path | None" = None
+) -> None:
     base = Path(base_dir)
     if not base.exists():
         print(f"{base_dir}: does not exist, nothing to do")
@@ -116,6 +118,8 @@ def _prune_keep_newest_n(base_dir: str, keep_newest_n: int, apply: bool) -> None
             continue
     dated.sort(key=lambda pair: pair[0], reverse=True)
     for _, child in dated[keep_newest_n:]:
+        if protect is not None and child.name == protect.name:
+            continue  # the version the launcher uses is never deleted, whatever its mtime
         _report(child, apply)
         if apply:
             _delete_path(child)
@@ -181,7 +185,14 @@ def main() -> int:
         _prune_by_age(RUNNER_DIAG_DIR, MAX_AGE_DAYS_DIAG, args.apply)
     elif args.action == "claude-old-versions":
         for home in CLAUDE_VERSION_HOMES:
-            _prune_keep_newest_n(f"{home}/.local/share/claude/versions", CLAUDE_KEEP_NEWEST_N, args.apply)
+            # Ranking is by mtime alone, so also spare the version the launcher points at.
+            try:
+                active = Path(f"{home}/.local/bin/claude").resolve(strict=True)
+            except OSError:
+                active = None
+            _prune_keep_newest_n(
+                f"{home}/.local/share/claude/versions", CLAUDE_KEEP_NEWEST_N, args.apply, active
+            )
     elif args.action == "journal-vacuum":
         _journal_vacuum(args.apply)
     elif args.action == "list-orphaned-homes":

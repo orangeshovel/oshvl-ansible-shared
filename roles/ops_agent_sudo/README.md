@@ -43,7 +43,8 @@ outside `app_directories`' management.
 | `ops_agent_sudo_app_user` | `ops-agent` | The unprivileged service user granted this sudo access. |
 | `ops_agent_sudo_journal_vacuum_size` | `500M` | Passed to `journalctl --vacuum-size=`. |
 | `ops_agent_sudo_claude_version_homes` | `[ops_agent_sudo_runner_home]` | List of home directories to check for old Claude Code CLI version binaries. |
-| `ops_agent_sudo_claude_keep_newest_n` | `3` | Number of Claude CLI versions to retain. |
+| `ops_agent_sudo_claude_keep_newest_n` | `3` | Number of Claude CLI versions to retain, newest first by mtime. The version `~/.local/bin/claude` resolves to is never deleted, even if its mtime ranks it outside the newest N. |
+| `ops_agent_sudo_work_max_age_days` | `30` | Age in days after which entries in the runner's `_work` directory are pruned (never while a job is running). |
 
 ## Defense in depth
 
