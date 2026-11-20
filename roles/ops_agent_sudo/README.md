@@ -57,11 +57,15 @@ anything unless `--apply` is explicitly passed to it directly.
 
 ## `apt-upgrade` action
 
-Runs `apt-get update` and `apt-get -y upgrade` (only with `--apply`; without it, a
-`apt-get -s upgrade` simulation). It never removes packages or installs new ones, keeps
-existing config files (`--force-confold`), and waits up to 5 minutes for the dpkg lock. It
-upgrades every enabled apt source, not only security updates. Hold a package you don't want
-touched with `apt-mark hold`.
+Runs `apt-get update` and `apt-get -y upgrade --with-new-pkgs` (only with `--apply`;
+without it, an `apt-get -s upgrade --with-new-pkgs` simulation). It never removes packages,
+but may install new ones: plain `upgrade` holds back any update that needs a new package,
+including every new kernel image, so kernels would never be updated. Old kernel packages
+are therefore not removed either, so watch `/boot` and the root disk (`apt autoremove` is a
+separate decision). It keeps existing config files (`--force-confold`), and waits up to
+5 minutes for the dpkg lock. It upgrades every enabled apt source, not only security
+updates. Hold a package you don't want touched with `apt-mark hold`. Updates apt still holds
+back are reported in `kept_back`.
 
 It prints two marker lines the caller parses (`oshvl-ops-agent-shared`,
 `ops_agent/daily_ops/os_upgrade.py`):

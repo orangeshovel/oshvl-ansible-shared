@@ -195,7 +195,11 @@ def _apt(*args: str) -> "subprocess.CompletedProcess[str]":
 
 
 def _apt_upgrade(apply: bool) -> int:
-    """`apt-get upgrade` (never removes packages, never installs new ones).
+    """`apt-get upgrade --with-new-pkgs`: never removes packages, but may install new ones.
+
+    --with-new-pkgs matters: plain `upgrade` holds back any update that needs a new package,
+    which includes every new kernel image (a new package, not an upgrade of the old one), so
+    kernels would never be updated. Old kernel packages are not removed.
 
     Dry-run (no --apply) only simulates against the current package index. Prints
     machine-parsed marker lines for the caller (ops_agent.daily_ops.os_upgrade) --
@@ -210,10 +214,10 @@ def _apt_upgrade(apply: bool) -> int:
             print("apt-get update failed:", file=sys.stderr)
             print(update.stderr.strip()[-2000:], file=sys.stderr)
             return 1
-        result = _apt("-y", "upgrade")
+        result = _apt("-y", "upgrade", "--with-new-pkgs")
     else:
-        print("[dry-run] simulating: apt-get upgrade")
-        result = _apt("-s", "upgrade")
+        print("[dry-run] simulating: apt-get upgrade --with-new-pkgs")
+        result = _apt("-s", "upgrade", "--with-new-pkgs")
 
     print(result.stdout.strip()[-2000:])
     if result.returncode != 0:
