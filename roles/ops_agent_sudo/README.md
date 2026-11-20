@@ -54,3 +54,25 @@ own check), and treats `--apply` as its own independent dry-run gate — a bug
 in the unprivileged app's `APPLY` handling can produce a wrong report, but
 never an unwanted deletion, since the privileged surface refuses to delete
 anything unless `--apply` is explicitly passed to it directly.
+
+## `apt-upgrade` action
+
+Runs `apt-get update` and `apt-get -y upgrade` (only with `--apply`; without it, a
+`apt-get -s upgrade` simulation). It never removes packages or installs new ones, keeps
+existing config files (`--force-confold`), and waits up to 5 minutes for the dpkg lock. It
+upgrades every enabled apt source, not only security updates. Hold a package you don't want
+touched with `apt-mark hold`.
+
+It prints two marker lines the caller parses (`oshvl-ops-agent-shared`,
+`ops_agent/daily_ops/os_upgrade.py`):
+
+```
+[apt] upgraded=N kept_back=M
+[apt] reboot-required=true|false
+```
+
+The helper only makes the action *available*. Whether a host actually upgrades nightly is
+the ops-agent's per-host `APT_UPGRADE=true` setting, so hosts that don't opt in never upgrade.
+Upgrading restarts the services of the upgraded packages (for example `sshd`, `tailscaled`,
+`postgresql`), so schedule it at a quiet time. It does not reboot; a pending kernel/libc
+reboot is reported to the caller.
