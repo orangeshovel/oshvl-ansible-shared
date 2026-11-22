@@ -10,7 +10,6 @@ to exactly one absolute path with no caller-controlled arguments.
 """
 
 import argparse
-import os
 import re
 import shutil
 import subprocess
@@ -48,7 +47,15 @@ ACTIONS = [
 
 # apt-upgrade: wait (rather than fail) if another dpkg/apt run holds the lock.
 APT_LOCK_TIMEOUT_S = 300
+# Bound on one apt-get run. Kept below the caller's own timeout (3600s in
+# oshvl-ops-agent-shared) so the helper reports the failure itself instead of being orphaned.
+APT_TIMEOUT_S = 3300
+# Explicit minimal environment: nothing the caller's environment carries reaches root apt.
+# LC_ALL=C keeps the summary line English so APT_SUMMARY_RE matches.
 APT_ENV = {
+    "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LC_ALL": "C",
     "DEBIAN_FRONTEND": "noninteractive",
     "NEEDRESTART_MODE": "a",
     "APT_LISTCHANGES_FRONTEND": "none",
@@ -178,19 +185,23 @@ def _list_orphaned_homes() -> None:
 
 
 def _apt(*args: str) -> "subprocess.CompletedProcess[str]":
-    # Fixed argv, no shell, nothing from the caller. Existing config files are kept
-    # (--force-confold) so an upgrade never prompts or overwrites local changes.
+    # Fixed argv, no shell, nothing from the caller. Locally modified config files are kept
+    # (--force-confold) so an upgrade never prompts or overwrites local changes. stdin is
+    # closed so a stray prompt fails instead of blocking on an inherited pipe.
     return subprocess.run(
         [
             "apt-get",
             "-o", f"DPkg::Lock::Timeout={APT_LOCK_TIMEOUT_S}",
             "-o", "Dpkg::Options::=--force-confdef",
             "-o", "Dpkg::Options::=--force-confold",
+            "-o", "Dpkg::Use-Pty=0",
             *args,
         ],
         capture_output=True,
         text=True,
-        env={**os.environ, **APT_ENV},
+        stdin=subprocess.DEVNULL,
+        env=APT_ENV,
+        timeout=APT_TIMEOUT_S,
     )
 
 
@@ -206,8 +217,23 @@ def _apt_upgrade(apply: bool) -> int:
     keep these exact formats if touching either side:
         [apt] upgraded=N kept_back=M
         [apt] reboot-required=true|false
-    Returns non-zero if apt itself failed.
+    On failure (apt non-zero or timeout) NO marker lines are printed and the exit code is 1:
+    callers must check the exit code before parsing.
+    Dry-run results are only as fresh as the local index (no `apt-get update` is run), so they
+    must not be used as a "nothing to upgrade" signal.
     """
+    try:
+        return _apt_upgrade_run(apply)
+    except subprocess.TimeoutExpired:
+        print(
+            f"apt-get did not finish within {APT_TIMEOUT_S}s and was killed; "
+            "run `dpkg --configure -a` on the host if packages are half-configured",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def _apt_upgrade_run(apply: bool) -> int:
     if apply:
         update = _apt("update")
         if update.returncode != 0:
@@ -225,10 +251,8 @@ def _apt_upgrade(apply: bool) -> int:
         print(result.stderr.strip()[-2000:], file=sys.stderr)
         return 1
 
-    match = None
-    for match in APT_SUMMARY_RE.finditer(result.stdout):
-        pass  # keep the last summary line
-    upgraded, kept_back = (int(match.group(1)), int(match.group(4))) if match else (0, 0)
+    matches = APT_SUMMARY_RE.findall(result.stdout)  # last summary line wins
+    upgraded, kept_back = (int(matches[-1][0]), int(matches[-1][3])) if matches else (0, 0)
     print(f"[apt] upgraded={upgraded} kept_back={kept_back}")
     print(f"[apt] reboot-required={'true' if Path('/run/reboot-required').exists() else 'false'}")
     return 0
