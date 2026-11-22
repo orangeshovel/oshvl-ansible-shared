@@ -10,6 +10,7 @@ to exactly one absolute path with no caller-controlled arguments.
 """
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -41,7 +42,27 @@ ACTIONS = [
     "claude-old-versions",
     "journal-vacuum",
     "list-orphaned-homes",
+    "apt-upgrade",
 ]
+
+# apt-upgrade: wait (rather than fail) if another dpkg/apt run holds the lock.
+APT_LOCK_TIMEOUT_S = 300
+# Bound on one apt-get run. Kept below the caller's own timeout (3600s in
+# oshvl-ops-agent-shared) so the helper reports the failure itself instead of being orphaned.
+APT_TIMEOUT_S = 3300
+# Explicit minimal environment: nothing the caller's environment carries reaches root apt.
+# LC_ALL=C keeps the summary line English so APT_SUMMARY_RE matches.
+APT_ENV = {
+    "PATH": "/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LC_ALL": "C",
+    "DEBIAN_FRONTEND": "noninteractive",
+    "NEEDRESTART_MODE": "a",
+    "APT_LISTCHANGES_FRONTEND": "none",
+}
+APT_SUMMARY_RE = re.compile(
+    r"(\d+) upgraded, (\d+) newly installed, (\d+) to remove and (\d+) not upgraded"
+)
 
 
 def _runner_is_busy() -> bool:
@@ -163,6 +184,80 @@ def _list_orphaned_homes() -> None:
         print(f"candidate orphaned home (report-only, never auto-deleted): {entry} [size={size}]")
 
 
+def _apt(*args: str) -> "subprocess.CompletedProcess[str]":
+    # Fixed argv, no shell, nothing from the caller. Locally modified config files are kept
+    # (--force-confold) so an upgrade never prompts or overwrites local changes. stdin is
+    # closed so a stray prompt fails instead of blocking on an inherited pipe.
+    return subprocess.run(
+        [
+            "apt-get",
+            "-o", f"DPkg::Lock::Timeout={APT_LOCK_TIMEOUT_S}",
+            "-o", "Dpkg::Options::=--force-confdef",
+            "-o", "Dpkg::Options::=--force-confold",
+            "-o", "Dpkg::Use-Pty=0",
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=APT_ENV,
+        timeout=APT_TIMEOUT_S,
+    )
+
+
+def _apt_upgrade(apply: bool) -> int:
+    """`apt-get upgrade --with-new-pkgs`: never removes packages, but may install new ones.
+
+    --with-new-pkgs matters: plain `upgrade` holds back any update that needs a new package,
+    which includes every new kernel image (a new package, not an upgrade of the old one), so
+    kernels would never be updated. Old kernel packages are not removed.
+
+    Dry-run (no --apply) only simulates against the current package index. Prints
+    machine-parsed marker lines for the caller (ops_agent.daily_ops.os_upgrade) --
+    keep these exact formats if touching either side:
+        [apt] upgraded=N kept_back=M
+        [apt] reboot-required=true|false
+    On failure (apt non-zero or timeout) NO marker lines are printed and the exit code is 1:
+    callers must check the exit code before parsing.
+    Dry-run results are only as fresh as the local index (no `apt-get update` is run), so they
+    must not be used as a "nothing to upgrade" signal.
+    """
+    try:
+        return _apt_upgrade_run(apply)
+    except subprocess.TimeoutExpired:
+        print(
+            f"apt-get did not finish within {APT_TIMEOUT_S}s and was killed; "
+            "run `dpkg --configure -a` on the host if packages are half-configured",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def _apt_upgrade_run(apply: bool) -> int:
+    if apply:
+        update = _apt("update")
+        if update.returncode != 0:
+            print("apt-get update failed:", file=sys.stderr)
+            print(update.stderr.strip()[-2000:], file=sys.stderr)
+            return 1
+        result = _apt("-y", "upgrade", "--with-new-pkgs")
+    else:
+        print("[dry-run] simulating: apt-get upgrade --with-new-pkgs")
+        result = _apt("-s", "upgrade", "--with-new-pkgs")
+
+    print(result.stdout.strip()[-2000:])
+    if result.returncode != 0:
+        print(f"apt-get upgrade failed (exit {result.returncode}):", file=sys.stderr)
+        print(result.stderr.strip()[-2000:], file=sys.stderr)
+        return 1
+
+    matches = APT_SUMMARY_RE.findall(result.stdout)  # last summary line wins
+    upgraded, kept_back = (int(matches[-1][0]), int(matches[-1][3])) if matches else (0, 0)
+    print(f"[apt] upgraded={upgraded} kept_back={kept_back}")
+    print(f"[apt] reboot-required={'true' if Path('/run/reboot-required').exists() else 'false'}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--action", required=True, choices=ACTIONS)
@@ -197,6 +292,8 @@ def main() -> int:
         _journal_vacuum(args.apply)
     elif args.action == "list-orphaned-homes":
         _list_orphaned_homes()
+    elif args.action == "apt-upgrade":
+        return _apt_upgrade(args.apply)
 
     return 0
 

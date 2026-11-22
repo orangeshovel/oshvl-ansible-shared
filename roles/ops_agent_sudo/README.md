@@ -54,3 +54,40 @@ own check), and treats `--apply` as its own independent dry-run gate — a bug
 in the unprivileged app's `APPLY` handling can produce a wrong report, but
 never an unwanted deletion, since the privileged surface refuses to delete
 anything unless `--apply` is explicitly passed to it directly.
+
+## `apt-upgrade` action
+
+Runs `apt-get update` and `apt-get -y upgrade --with-new-pkgs` (only with `--apply`;
+without it, an `apt-get -s upgrade --with-new-pkgs` simulation). It never removes packages,
+but may install new ones: plain `upgrade` holds back any update that needs a new package,
+including every new kernel image, so kernels would never be updated. Old kernel packages
+are therefore not removed either, so watch `/boot` and the root disk (`apt autoremove` is a
+separate decision). It keeps locally modified config files (`--force-confold`; unmodified ones are updated), runs with a minimal explicit environment, no stdin and `LC_ALL=C`, gives apt 55 minutes (then kills it and exits 1), and waits up to
+5 minutes for the dpkg lock. It upgrades every enabled apt source, not only security
+updates. Hold a package you don't want touched with `apt-mark hold`. Updates apt still holds
+back are reported in `kept_back`.
+
+It prints two marker lines the caller parses (`oshvl-ops-agent-shared`,
+`ops_agent/daily_ops/os_upgrade.py`):
+
+```
+[apt] upgraded=N kept_back=M
+[apt] reboot-required=true|false
+```
+
+On failure (apt non-zero, or the 55-minute timeout) it prints no marker lines and exits 1;
+callers must check the exit code before parsing. A dry-run does not run `apt-get update`, so
+it only reflects the current local index and must not be treated as "nothing to upgrade".
+
+The helper only makes the action *available*: it has no opt-in gate of its own, so any caller
+allowed to run the helper can request it. Whether a host actually upgrades nightly is the
+ops-agent's per-host `APT_UPGRADE=true` setting (a trusted-caller control, unlike `--apply`).
+
+Two behaviours depend on packages this role does not install: service restarts after a
+library upgrade need `needrestart` (`NEEDRESTART_MODE=a`; otherwise only packages whose
+maintainer scripts restart themselves are restarted, and services using an upgraded library
+keep running the old code until restarted), and `reboot-required=true` needs the
+`/run/reboot-required` file written by `update-notifier-common` (Ubuntu installs it by
+default; on a minimal host without it the marker is always `false`). Upgrading restarts
+services of the upgraded packages (for example `sshd`, `tailscaled`, `postgresql`), so
+schedule it at a quiet time. It does not reboot.
