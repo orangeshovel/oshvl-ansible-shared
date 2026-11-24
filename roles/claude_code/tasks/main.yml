@@ -9,7 +9,9 @@
     that:
       - claude_code_user is defined
       - claude_code_user | length > 0
-    fail_msg: claude_code_user must be set explicitly by the caller.
+      - claude_code_version is defined
+      - claude_code_version | length > 0
+    fail_msg: claude_code_user and a non-empty claude_code_version must be set.
 
 - name: Ensure installer prerequisites are present
   ansible.builtin.apt:
@@ -37,7 +39,9 @@
   become_user: "{{ claude_code_user }}"
   environment:
     HOME: "{{ claude_code_home }}"
-  when: claude_code_version not in (claude_code_installed.stdout | default(''))
+  when: >-
+    (claude_code_installed.stdout | default('') | split | first | default(''))
+    != claude_code_version
   changed_when: true
 
 - name: Put ~/.local/bin on the user's PATH for login shells
