@@ -9,15 +9,22 @@
 
 - name: Download Tailscale apt signing key
   ansible.builtin.get_url:
-    # The old stable/debian/repo.gpg URL now returns 404; keys are per-release.
-    url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_distribution_release }}.noarmor.gpg"
+    # Per-release key under stable/<distro>/ (the older single repo.gpg path
+    # returned 404 for bookworm when checked). No checksum: this is the
+    # bootstrap of trust, TLS to pkgs.tailscale.com is the only protection.
+    # A failure here is deliberately fatal: no `curl | sh` fallback.
+    url: "https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}.noarmor.gpg"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: '0644'
-  when: not ansible_check_mode
+    force: yes  # re-fetch so a rotated signing key reaches existing hosts
+  register: tailscale_key_download
+  retries: 3
+  delay: 5
+  until: tailscale_key_download is succeeded
 
 - name: Add Tailscale apt repository
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian {{ ansible_distribution_release }} main"
+    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} main"
     state: present
     filename: tailscale
 
