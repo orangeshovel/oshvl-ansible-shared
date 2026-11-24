@@ -51,6 +51,7 @@ once they were confirmed byte-identical or safely parameterized via
 - `github_runner` — install and register a self-hosted GitHub Actions
   runner against a specific repo (identity vars have no default — see the
   role's own README for why)
+- `claude_code` — install a pinned Claude Code CLI for one user (no auth)
 - `jaeger` — install and run Jaeger (OpenTelemetry trace backend) as a
   systemd service from a downloaded release binary, no Docker (currently
   used by orangeshovel only)
