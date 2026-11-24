@@ -1,0 +1,53 @@
+---
+# Claude Code role tasks
+# Installs the Claude Code CLI for one user with Anthropic's native installer
+# (no Node.js needed). Authentication is deliberately NOT handled here: the
+# subscription token (`claude setup-token`) is a manual, per-host step.
+
+- name: Assert claude_code_user is set
+  ansible.builtin.assert:
+    that:
+      - claude_code_user is defined
+      - claude_code_user | length > 0
+      - claude_code_version is defined
+      - claude_code_version | length > 0
+    fail_msg: claude_code_user and a non-empty claude_code_version must be set.
+
+- name: Ensure installer prerequisites are present
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+    state: present
+    update_cache: yes
+
+- name: Check installed Claude Code version
+  ansible.builtin.command: "{{ claude_code_home }}/.local/bin/claude --version"
+  become: yes
+  become_user: "{{ claude_code_user }}"
+  register: claude_code_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install pinned Claude Code version
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    curl -fsSL {{ claude_code_installer_url }} | bash -s {{ claude_code_version }}
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ claude_code_user }}"
+  environment:
+    HOME: "{{ claude_code_home }}"
+  when: >-
+    (claude_code_installed.stdout | default('') | split | first | default(''))
+    != claude_code_version
+  changed_when: true
+
+- name: Put ~/.local/bin on the user's PATH for login shells
+  ansible.builtin.lineinfile:
+    path: "{{ claude_code_home }}/.profile"
+    line: 'export PATH="$HOME/.local/bin:$PATH"'
+    create: yes
+    owner: "{{ claude_code_user }}"
+    mode: '0644'

@@ -1,0 +1,13 @@
+---
+# Claude Code role defaults
+
+# No default for claude_code_user — it is inherently host/app-specific, and the
+# user must already exist (see oshvl.infra.app_user).
+claude_code_home: "/home/{{ claude_code_user }}"
+
+# Pinned on purpose: this collection floats on `main`, so an unpinned install
+# would silently upgrade the CLI on a consumer's next unrelated run. Callers
+# should set this explicitly and bump it deliberately.
+claude_code_version: "2.1.322"
+
+claude_code_installer_url: "https://claude.ai/install.sh"
